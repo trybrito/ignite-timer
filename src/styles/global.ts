@@ -25,6 +25,10 @@ export const GlobalStyle = createGlobalStyle`
     font-size: 1rem;
   }
 
+  input {
+    border: 0;
+  }
+
   input::placeholder {
     color: inherit;
   }
