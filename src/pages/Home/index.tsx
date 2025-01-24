@@ -11,6 +11,8 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useEffect, useState } from 'react';
+import { differenceInSeconds } from 'date-fns';
 
 const newCycleFormSchema = z.object({
   task: z.string().min(1, 'Informe uma tarefa válida'),
@@ -22,7 +24,18 @@ const newCycleFormSchema = z.object({
 
 type newCycleFormData = z.infer<typeof newCycleFormSchema>;
 
+interface Cycle {
+  id: string;
+  task: string;
+  minutesAmount: number;
+  startDate: Date;
+}
+
 export function Home() {
+  const [cycles, setCycles] = useState<Cycle[]>([]);
+  const [activeCycleId, setActiveCycleId] = useState<string | null>(null);
+  const [amountOfSecondsPassed, setAmountOfSecondsPassed] = useState(0);
+
   const { register, handleSubmit, watch, reset } = useForm<newCycleFormData>({
     resolver: zodResolver(newCycleFormSchema),
     defaultValues: {
@@ -31,13 +44,60 @@ export function Home() {
     },
   });
 
-  function handleCreateNewCycle(data: newCycleFormData) {
-    console.log(data);
+  function handleCreateNewCycle({ task, minutesAmount }: newCycleFormData) {
+    const id = String(new Date().getTime());
+
+    const newCycle: Cycle = {
+      id,
+      task,
+      minutesAmount,
+      startDate: new Date(),
+    };
+
+    setCycles((state) => [...state, newCycle]);
+    setActiveCycleId(id);
+    setAmountOfSecondsPassed(0);
+
     reset();
   }
 
+  const activeCycle = cycles.find((cycle) => cycle.id === activeCycleId);
+
+  useEffect(() => {
+    let interval: number;
+
+    if (activeCycle) {
+      interval = setInterval(() => {
+        setAmountOfSecondsPassed(
+          differenceInSeconds(new Date(), activeCycle.startDate)
+        );
+      }, 1000);
+    }
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [activeCycle]);
+
+  const totalSecondsAmount = activeCycle ? activeCycle.minutesAmount * 60 : 0;
+  const currentSecondsAmount = activeCycle
+    ? totalSecondsAmount - amountOfSecondsPassed
+    : 0;
+
+  const minutesAmount = Math.floor(currentSecondsAmount / 60);
+  const secondsAmount = currentSecondsAmount % 60;
+
+  const minutes = String(minutesAmount).padStart(2, '0');
+  const seconds = String(secondsAmount).padStart(2, '0');
+
   const task = watch('task');
   const isSubmitButtonDisabled = !task;
+
+  useEffect(() => {
+    if (activeCycle) {
+      document.title = `${minutes}:${seconds}`;
+    }
+  }, [minutes, seconds, activeCycle]);
 
   return (
     <HomeContainer>
@@ -75,11 +135,11 @@ export function Home() {
         </FormContainer>
 
         <CountdownContainer>
-          <span>0</span>
-          <span>0</span>
+          <span>{minutes[0]}</span>
+          <span>{minutes[1]}</span>
           <Separator>:</Separator>
-          <span>0</span>
-          <span>0</span>
+          <span>{seconds[0]}</span>
+          <span>{seconds[1]}</span>
         </CountdownContainer>
 
         <StartCountdownButton
