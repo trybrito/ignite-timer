@@ -1,4 +1,4 @@
-import { Play } from 'phosphor-react';
+import { HandPalm, Play } from 'phosphor-react';
 import {
   HomeContainer,
   FormContainer,
@@ -7,6 +7,7 @@ import {
   StartCountdownButton,
   TaskInput,
   MinutesAmountInput,
+  StopCountdownButton,
 } from './styles';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,7 +19,7 @@ const newCycleFormSchema = z.object({
   task: z.string().min(1, 'Informe uma tarefa válida'),
   minutesAmount: z
     .number()
-    .min(5, { message: 'O ciclo precisa ter pelo menos 5 minutos' })
+    .min(1, { message: 'O ciclo precisa ter pelo menos 5 minutos' })
     .max(60, { message: 'O ciclo não pode ter mais que 60 minutos' }),
 });
 
@@ -29,6 +30,8 @@ interface Cycle {
   task: string;
   minutesAmount: number;
   startDate: Date;
+  interruptedDate?: Date;
+  finishedDate?: Date;
 }
 
 export function Home() {
@@ -61,25 +64,58 @@ export function Home() {
     reset();
   }
 
+  function handleInterruptCycle() {
+    setCycles(
+      cycles.map((cycle) => {
+        if (cycle.id === activeCycleId) {
+          return { ...cycle, interruptedDate: new Date() };
+        }
+
+        return cycle;
+      })
+    );
+
+    setActiveCycleId(null);
+    document.title = 'Ignite Timer | Home';
+  }
+
   const activeCycle = cycles.find((cycle) => cycle.id === activeCycleId);
+  const totalSecondsAmount = activeCycle ? activeCycle.minutesAmount * 60 : 0;
 
   useEffect(() => {
     let interval: number;
 
     if (activeCycle) {
       interval = setInterval(() => {
-        setAmountOfSecondsPassed(
-          differenceInSeconds(new Date(), activeCycle.startDate)
+        const secondsDiff = differenceInSeconds(
+          new Date(),
+          activeCycle.startDate
         );
+
+        if (secondsDiff >= totalSecondsAmount) {
+          setCycles((state) => {
+            return state.map((cycle) => {
+              if (cycle.id === activeCycleId) {
+                return { ...cycle, finishedDate: new Date() };
+              }
+
+              return cycle;
+            });
+          });
+
+          setAmountOfSecondsPassed(totalSecondsAmount);
+          clearInterval(interval);
+        } else {
+          setAmountOfSecondsPassed(secondsDiff);
+        }
       }, 1000);
     }
 
     return () => {
       clearInterval(interval);
     };
-  }, [activeCycle]);
+  }, [activeCycle, totalSecondsAmount, activeCycleId]);
 
-  const totalSecondsAmount = activeCycle ? activeCycle.minutesAmount * 60 : 0;
   const currentSecondsAmount = activeCycle
     ? totalSecondsAmount - amountOfSecondsPassed
     : 0;
@@ -113,6 +149,7 @@ export function Home() {
             id="task"
             list="task-suggestions"
             placeholder="Dê um nome para o seu projeto"
+            disabled={!!activeCycle}
             {...register('task')}
           />
 
@@ -125,9 +162,10 @@ export function Home() {
             type="number"
             id="minutesAmount"
             placeholder="00"
-            min={5}
+            min={1}
             max={60}
             step={5}
+            disabled={!!activeCycle}
             {...register('minutesAmount', { valueAsNumber: true })}
           />
 
@@ -142,14 +180,21 @@ export function Home() {
           <span>{seconds[1]}</span>
         </CountdownContainer>
 
-        <StartCountdownButton
-          type="submit"
-          form="taskForm"
-          disabled={isSubmitButtonDisabled}
-        >
-          <Play width={20} height={24} />
-          Começar
-        </StartCountdownButton>
+        {activeCycle ? (
+          <StopCountdownButton type="button" onClick={handleInterruptCycle}>
+            <HandPalm width={20} height={24} />
+            interromper
+          </StopCountdownButton>
+        ) : (
+          <StartCountdownButton
+            type="submit"
+            form="taskForm"
+            disabled={isSubmitButtonDisabled}
+          >
+            <Play width={20} height={24} />
+            Começar
+          </StartCountdownButton>
+        )}
       </div>
     </HomeContainer>
   );
